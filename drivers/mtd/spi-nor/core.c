@@ -424,6 +424,7 @@ int spi_nor_read_id(struct spi_nor *nor, u8 naddr, u8 ndummy, u8 *id,
 		    enum spi_nor_protocol proto)
 {
 	int ret;
+	
 #define SPI_NOR_MAX_EDID_LEN    20
 
 	if (nor->spimem) {
@@ -623,7 +624,8 @@ static int spi_nor_write_ear(struct spi_nor *nor, u32 addr)
 		code = SPINOR_OP_BRWR;
 	if (nor->info->id[0] == CFI_MFR_ST ||
 	    nor->info->id[0] == CFI_MFR_MACRONIX ||
-	    nor->info->id[0] == CFI_MFR_PMC) {
+	    nor->info->id[0] == CFI_MFR_PMC ||
+		nor->info->id[0] == CFI_MFR_WINBND ) {
 		spi_nor_write_enable(nor);
 		code = SPINOR_OP_WREAR;
 	}
@@ -669,7 +671,8 @@ static int read_ear(struct spi_nor *nor, struct flash_info *info)
 	/* This is actually Micron */
 	else if (nor->info->id[0] == CFI_MFR_ST ||
 		 nor->info->id[0] == CFI_MFR_MACRONIX ||
-		 nor->info->id[0] == CFI_MFR_PMC)
+		 nor->info->id[0] == CFI_MFR_PMC ||
+		 nor->info->id[0] == CFI_MFR_WINBND)
 		code = SPINOR_OP_RDEAR;
 	else
 		return -EINVAL;
@@ -3455,6 +3458,7 @@ static int spi_nor_init(struct spi_nor *nor)
 	if (nor->info->id[0] == CFI_MFR_ATMEL ||
 	    nor->info->id[0] == CFI_MFR_INTEL ||
 	    nor->info->id[0] == CFI_MFR_SST ||
+		nor->info->id[0] == CFI_MFR_WINBND ||
 	    nor->info->id[0] & SNOR_F_HAS_LOCK) {
 		spi_nor_write_enable(nor);
 		nor->bouncebuf[0] = 0;
