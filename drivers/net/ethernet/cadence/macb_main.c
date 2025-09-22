@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Cadence MACB/GEM Ethernet Controller driver
  *
@@ -53,13 +52,13 @@ struct sifive_fu540_macb_mgmt {
 #define MACB_RX_BUFFER_SIZE	128
 #define RX_BUFFER_MULTIPLE	64  /* bytes */
 
-#define DEFAULT_RX_RING_SIZE	512 /* must be power of 2 */
+#define DEFAULT_RX_RING_SIZE	8192 /* must be power of 2 */
 #define MIN_RX_RING_SIZE	64
 #define MAX_RX_RING_SIZE	8192
 #define RX_RING_BYTES(bp)	(macb_dma_desc_get_size(bp)	\
 				 * (bp)->rx_ring_size)
 
-#define DEFAULT_TX_RING_SIZE	512 /* must be power of 2 */
+#define DEFAULT_TX_RING_SIZE	4096 /* must be power of 2 */
 #define MIN_TX_RING_SIZE	64
 #define MAX_TX_RING_SIZE	4096
 #define TX_RING_BYTES(bp)	(macb_dma_desc_get_size(bp)	\
@@ -67,6 +66,9 @@ struct sifive_fu540_macb_mgmt {
 
 /* level of occupied TX descriptors under which we wake up TX process */
 #define MACB_TX_WAKEUP_THRESH(bp)	(3 * (bp)->tx_ring_size / 4)
+
+/* level of free TX descriptors under which we preemptivy call napi_schedule(tx_poll) */
+#define MACB_TX_NAPI_SCHEDULE_THRESH(bp)	(7 * (bp)->tx_ring_size / 8)
 
 #define MACB_RX_INT_FLAGS	(MACB_BIT(RCOMP) | MACB_BIT(ISR_ROVR))
 #define MACB_TX_ERR_FLAGS	(MACB_BIT(ISR_TUND)			\
@@ -1183,7 +1185,7 @@ not_oss:
 	return false;
 }
 
-static int macb_tx_complete(struct macb_queue *queue, int budget)
+static int macb_tx_complete(struct macb_queue *queue, int budget, int *busy_cnt)
 {
 	struct macb *bp = queue->bp;
 	u16 queue_index = queue - bp->queues;
@@ -1250,9 +1252,9 @@ static int macb_tx_complete(struct macb_queue *queue, int budget)
 	}
 
 	queue->tx_tail = tail;
-	if (__netif_subqueue_stopped(bp->dev, queue_index) &&
-	    CIRC_CNT(queue->tx_head, queue->tx_tail,
-		     bp->tx_ring_size) <= MACB_TX_WAKEUP_THRESH(bp))
+	*busy_cnt = CIRC_CNT(queue->tx_head, queue->tx_tail, bp->tx_ring_size);
+	if (__netif_subqueue_stopped(bp->dev, queue_index)
+	    	&& *busy_cnt <= MACB_TX_WAKEUP_THRESH(bp))
 		netif_wake_subqueue(bp->dev, queue_index);
 	spin_unlock(&queue->tx_ptr_lock);
 
@@ -1702,6 +1704,7 @@ static void macb_tx_restart(struct macb_queue *queue)
 {
 	struct macb *bp = queue->bp;
 	unsigned int head_idx, tbqp;
+	bool restarted = false;
 
 	spin_lock(&queue->tx_ptr_lock);
 
@@ -1719,8 +1722,26 @@ static void macb_tx_restart(struct macb_queue *queue)
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
 	spin_unlock_irq(&bp->lock);
 
+	restarted = true;
+
 out_tx_ptr_unlock:
 	spin_unlock(&queue->tx_ptr_lock);
+
+	if (restarted) {
+		netdev_vdbg(bp->dev, "poll: tx restart\n");
+	}
+}
+
+static bool __macb_tx_complete_pending(struct macb_queue *queue)
+{
+	if (queue->tx_head != queue->tx_tail) {
+		/* Make hw descriptor updates visible to CPU */
+		rmb();
+
+		if (macb_tx_desc(queue, queue->tx_tail)->ctrl & MACB_BIT(TX_USED))
+			return true;
+	}
+	return false;
 }
 
 static bool macb_tx_complete_pending(struct macb_queue *queue)
@@ -1728,14 +1749,9 @@ static bool macb_tx_complete_pending(struct macb_queue *queue)
 	bool retval = false;
 
 	spin_lock(&queue->tx_ptr_lock);
-	if (queue->tx_head != queue->tx_tail) {
-		/* Make hw descriptor updates visible to CPU */
-		rmb();
-
-		if (macb_tx_desc(queue, queue->tx_tail)->ctrl & MACB_BIT(TX_USED))
-			retval = true;
-	}
+	retval = __macb_tx_complete_pending(queue);
 	spin_unlock(&queue->tx_ptr_lock);
+
 	return retval;
 }
 
@@ -1743,39 +1759,29 @@ static int macb_tx_poll(struct napi_struct *napi, int budget)
 {
 	struct macb_queue *queue = container_of(napi, struct macb_queue, napi_tx);
 	struct macb *bp = queue->bp;
-	int work_done;
+	int work_done, busy_cnt;
 
-	work_done = macb_tx_complete(queue, budget);
+	work_done = macb_tx_complete(queue, budget, &busy_cnt);
 
 	rmb(); // ensure txubr_pending is up to date
 	if (queue->txubr_pending) {
-		queue->txubr_pending = false;
-		netdev_vdbg(bp->dev, "poll: tx restart\n");
+		queue_writel(queue, IER, MACB_BIT(TXUBR));
 		macb_tx_restart(queue);
+		queue->txubr_pending = false;
 	}
 
 	netdev_vdbg(bp->dev, "TX poll: queue = %u, work_done = %d, budget = %d\n",
-		    (unsigned int)(queue - bp->queues), work_done, budget);
+			(unsigned int)(queue - bp->queues), work_done, budget);
 
 	if (work_done < budget && napi_complete_done(napi, work_done)) {
-		queue_writel(queue, IER, MACB_BIT(TCOMP));
-
-		/* Packet completions only seem to propagate to raise
-		 * interrupts when interrupts are enabled at the time, so if
-		 * packets were sent while interrupts were disabled,
-		 * they will not cause another interrupt to be generated when
-		 * interrupts are re-enabled.
-		 * Check for this case here to avoid losing a wakeup. This can
-		 * potentially race with the interrupt handler doing the same
-		 * actions if an interrupt is raised just after enabling them,
-		 * but this should be harmless.
-		 */
-		if (macb_tx_complete_pending(queue)) {
-			queue_writel(queue, IDR, MACB_BIT(TCOMP));
-			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
-				queue_writel(queue, ISR, MACB_BIT(TCOMP));
+		/* Reschedule if more to come.
+		   Don't bother to lock, if we read wrong data it will be an extra interrupt.
+		*/
+		if (queue->tx_head != queue->tx_tail) {
 			netdev_vdbg(bp->dev, "TX poll: packets pending, reschedule\n");
 			napi_schedule(napi);
+		} else {
+			queue_writel(queue, IER, MACB_BIT(TCOMP));
 		}
 	}
 
@@ -1875,10 +1881,12 @@ static irqreturn_t macb_interrupt(int irq, void *dev_id)
 			      MACB_BIT(TXUBR))) {
 			queue_writel(queue, IDR, MACB_BIT(TCOMP));
 			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
-				queue_writel(queue, ISR, MACB_BIT(TCOMP) |
-							 MACB_BIT(TXUBR));
+				queue_writel(queue, ISR, MACB_BIT(TCOMP));
 
 			if (status & MACB_BIT(TXUBR)) {
+				queue_writel(queue, IDR, MACB_BIT(TXUBR));
+				if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+					queue_writel(queue, ISR, MACB_BIT(TXUBR));
 				queue->txubr_pending = true;
 				wmb(); // ensure softirq can see update
 			}
@@ -2251,6 +2259,7 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	unsigned int hdrlen;
 	bool is_lso;
 	netdev_tx_t ret = NETDEV_TX_OK;
+	unsigned int free_cnt = 0;
 
 	if (macb_clear_csum(skb)) {
 		dev_kfree_skb_any(skb);
@@ -2329,11 +2338,21 @@ static netdev_tx_t macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	macb_writel(bp, NCR, macb_readl(bp, NCR) | MACB_BIT(TSTART));
 	spin_unlock_irq(&bp->lock);
 
-	if (CIRC_SPACE(queue->tx_head, queue->tx_tail, bp->tx_ring_size) < 1)
+	free_cnt = CIRC_SPACE(queue->tx_head, queue->tx_tail, bp->tx_ring_size);
+	if (free_cnt < 1)
 		netif_stop_subqueue(dev, queue_index);
 
 unlock:
 	spin_unlock_bh(&queue->tx_ptr_lock);
+
+	if (free_cnt < MACB_TX_NAPI_SCHEDULE_THRESH(bp)) {
+		if (napi_schedule_prep(&queue->napi_tx)) {
+			queue_writel(queue, IDR, MACB_BIT(TCOMP));
+			if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+				queue_writel(queue, ISR, MACB_BIT(TCOMP));
+			__napi_schedule(&queue->napi_tx);
+		}
+	}
 
 	return ret;
 }
