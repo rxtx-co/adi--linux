@@ -205,9 +205,17 @@
 		};
 
 		mwipcore@43c00000 {
+			/* MicroPhase axi_vcxo_ctrl | ad5660mp */
 			compatible = "mathworks,mwipcore-axi4lite-v1.00";
 			reg = <0x43c00000 0xffff>;
 		};
+
+               axi_timestamp_ctrl_0: axi-timestamp-ctrl@43C10000 {
+                       /* axi_timestamp_ctrl | rxtx-axi-timestamp-ctrl */
+                       compatible = "rxtx,axi-timestamp-ctrl-1.0";
+                       reg = <0x43C10000 0x10000>;
+               };
+
 	};
 };
 
