@@ -86,6 +86,27 @@
 		};
 
 	};
+/*
+        one-bit-adc-dac@0 {
+                compatible = "adi,one-bit-adc-dac";
+
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                in-gpios = <&gpio0 73 GPIO_ACTIVE_HIGH>;
+                out-gpios = <&gpio0 74 GPIO_ACTIVE_HIGH>;
+
+                channel@0 {
+                        reg = <0>;
+                        label = "txdata";
+                };
+
+                channel@1 {
+                        reg = <1>;
+                        label = "orange";
+                };
+        };
+*/
 };
 
 
