@@ -67,6 +67,9 @@
 	phy-mode = "rgmii-id";
 	phy-handle = <&phy0>;
 
+        local-mac-address = [00 00 00 00 00 00];
+        mac-address = [00 00 00 00 00 00];
+
 	phy0: phy@0 { /* Marvell 88e1512 */
 		reg = <0>;
 		compatible = "ethernet-phy-ieee802.3-c22";
