@@ -1,0 +1,54 @@
+
+/dts-v1/;
+#include "zynq-pzp201pro.dtsi"
+
+
+
+
+&adc0_ad9364 {
+	/* This property is controlled by u-boot environment. */
+	adi,2rx-2tx-mode-enable;
+};
+
+&cf_ad9364_dac_core_0 {
+	/* This property is controlled by u-boot environment. */
+	compatible = "adi,axi-ad9361-dds-6.00.a";
+};
+
+
+/ {
+	model = "PUZHI PZSDR P201PRO";
+	
+	leds {
+		compatible = "gpio-leds";
+		led0 {
+			label = "led0:blue";
+			gpios = <&gpio0 71 0>;
+			linux,default-trigger = "heartbeat";
+		};
+		
+		led1 {
+			label = "led1:blue";
+			gpios = <&gpio0 72 0>;
+			linux,default-trigger = "heartbeat";
+		};		
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		button {
+			interrupt-parent = <&gpio0>;
+			interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+			label = "Button";
+			linux,code = <BTN_MISC>;
+		};
+
+	};
+
+};
+
+
+	
