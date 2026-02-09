@@ -23,6 +23,7 @@
 	aliases {
 		ethernet0 = &gem0;
 		serial0 = &uart1;
+		serial1 = &uart0;
 		spi0 = &qspi;
 		mmc0 = &sdhci0;
 	};
@@ -65,7 +66,13 @@
 	reset-on-timeout;
 };
 
+&uart0 {
+       status = "okay";
+};
 
+&uart1 {
+       status = "okay";
+};
 
 &gem0 {
 	status = "okay";
