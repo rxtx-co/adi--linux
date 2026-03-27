@@ -20,6 +20,12 @@
 		reg = <0x00000000 0x40000000>;
 	};
 
+        aliases: aliases {
+                ethernet0 = &gem0;
+                serial0 = &uart1;
+		serial1 = &uart0;
+        };
+
 	chosen {
 		stdout-path = "/amba@0/uart@E0001000";
 	};
@@ -60,6 +66,14 @@
 &watchdog0 {
 	status = "okay";
 	reset-on-timeout;
+};
+
+&uart0 {
+       status = "okay";
+};
+
+&uart1 {
+       status = "okay";
 };
 
 &gem0 {
@@ -219,6 +233,18 @@
                        reg = <0x43C10000 0x10000>;
                };
 
+               //axi_encoder_uart_recv_0: axi-encoder-uart-recv@43C20000 {
+               //        /* axi_encoder_uart_recv | rxtx-axi-encoder-uart-recv */
+               //        compatible = "rxtx,axi-encoder-uart-recv-1.0";
+               //        reg = <0x43C20000 0x10000>;
+               //};
+
+	       uart_rx_uio@43C20000 {
+	               compatible = "generic-uio";
+                       reg = <0x43C20000 0x10000>;
+	               interrupts = <0 55 IRQ_TYPE_LEVEL_HIGH>;
+	               interrupt-parent = <&intc>;
+               };
 	};
 };
 
