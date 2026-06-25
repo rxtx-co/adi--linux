@@ -1,0 +1,33 @@
+/*
+ * Copy of Trenz Electronics TE0729 build
+ * TE0729-test_board_noprebuilt-vivado_2023.2-build_4_20240627160410.zip
+ * TE0729-test_board-vivado_2023.2-build_4_20240627160410.zip
+ */
+
+/include/ "zynq-te0729-system-conf.dtsi"
+/include/ "zynq-te0729-system-user.dtsi"
+
+/ {
+        cpus {
+                cpu@0 {
+                        operating-points = <
+				/* kHz    uV */
+				666667 1000000
+				333334 1000000
+				166667 1000000
+				
+			>;
+                };
+        };
+};
+
+
+/* RXTX: disable ARM A9 global + TWD timers so cpufreq can scale the CPU clock */
+&global_timer {
+	status = "disabled";
+};
+
+//&scutimer {
+//	status = "disabled";
+//};
+

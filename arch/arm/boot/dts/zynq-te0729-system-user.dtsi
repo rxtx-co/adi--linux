@@ -1,0 +1,101 @@
+
+/ {
+  chosen {
+    xlnx,eeprom = &eeprom;
+  };
+};
+
+/* QSPI PHY */
+&qspi {
+    status = "okay";
+    flash0: flash@0 {
+                compatible = "s25fl256s1", "jedec,spi-nor";
+                reg = <0x0>;
+
+                spi-max-frequency = <50000000>;
+                spi-rx-bus-width = <4>;
+                spi-tx-bus-width = <1>;
+
+                #address-cells = <1>;
+                #size-cells = <1>;
+    };
+};
+
+
+/* ETH PHY */
+&gem0 {
+    phy-handle = <&phy0>;
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        phy0: phy@0 {
+            compatible = "marvell,88e1510";
+            device_type = "ethernet-phy";
+            reg = <0>;
+        };
+    };
+};
+
+/* AXI ETH PHY0 */
+
+&axi_ethernetlite_0 {
+    local-mac-address = [00 0a 35 00 22 02];
+    phy-handle = <&phy1>;
+    xlnx,has-mdio = <0x1>;
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        phy1: phy@1 {
+            device_type = "ethernet-phy";
+            reg = <1>;
+        };
+    };
+};
+
+/* AXI ETH PHY1 */
+&axi_ethernetlite_1 {
+    local-mac-address = [00 0a 35 00 22 03];
+    phy-handle = <&phy2>;
+    xlnx,has-mdio = <0x1>;
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        phy2: phy@1 {
+            device_type = "ethernet-phy";
+            reg = <1>;
+        };
+    };
+};
+
+
+/* RTC */
+&i2c0 {
+    rtc@6F {        // Real Time Clock
+       compatible = "isl12022";
+       reg = <0x6F>;
+   };
+  //MAC EEPROM
+  eeprom: eeprom@50 {
+    compatible = "atmel,24c08";
+    reg = <0x54>;
+  };
+};
+
+/* USB PHY */
+
+/{
+    usb_phy0: usb_phy@0 {
+        compatible = "ulpi-phy";
+        //compatible = "usb-nop-xceiv";
+        #phy-cells = <0>;
+        reg = <0xe0002000 0x1000>;
+        view-port = <0x0170>;
+        drv-vbus;
+    };
+};
+
+&usb0 {
+    dr_mode = "host";
+    //dr_mode = "peripheral";
+    usb-phy = <&usb_phy0>;
+};

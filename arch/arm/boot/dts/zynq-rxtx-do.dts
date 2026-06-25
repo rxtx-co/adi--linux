@@ -1,0 +1,29 @@
+/*
+ * Copy of Trenz Electronics TE0729 build
+ * TE0729-test_board_noprebuilt-vivado_2023.2-build_4_20240627160410.zip
+ * TE0729-test_board-vivado_2023.2-build_4_20240627160410.zip
+ */
+
+/dts-v1/;
+#include "zynq-7000.dtsi"
+#include "zynq-te0729-pl.dtsi"
+#include "zynq-te0729-pcw.dtsi"
+/ {
+        model = "RXTX-DO on TE0729";
+
+        aliases {
+                ethernet0 = &axi_ethernetlite_1;
+                ethernet1 = &gem0;
+                ethernet2 = &axi_ethernetlite_0;
+                i2c0 = &i2c0;
+                i2c1 = &i2c1;
+                serial0 = &uart0;
+                spi0 = &qspi;
+        };
+        memory@0 {
+                device_type = "memory";
+                reg = <0x0 0x20000000>;
+        };
+};
+
+#include "zynq-rxtx-do.dtsi"
