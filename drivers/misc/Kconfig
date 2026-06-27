@@ -559,6 +559,14 @@ config TMR_INJECT
 
 	  Say N here unless you know what you are doing.
 
+config RXTX_DRIVERS
+        bool "Select to build RXTX Drivers"
+        help
+          This option enables the RXTX drivers.
+
+          Say N here unless you know what you are doing.
+
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
