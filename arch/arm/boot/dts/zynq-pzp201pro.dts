@@ -32,6 +32,28 @@
                label = "iio-axi-tdd-0";
        };
 
+       axi_tdd_1: axi-tdd-1@7C450000 {
+               compatible = "adi,axi-tdd";
+               reg = <0x7C450000 0x10000>;
+               clocks = <&clkc 15>, <&adc0_ad9364 20>;
+               clock-names = "s_axi_aclk", "intf_clk";
+       };
+
+       iio_axi_tdd_1@0 {
+               compatible = "adi,iio-fake-platform-device";
+               adi,faked-dev = <&axi_tdd_1>;
+               adi,attribute-names =
+               "version", "core_id", "scratch", "magic",
+               "sync_soft", "sync_external", "sync_internal", "sync_reset",
+               "enable", "startup_delay_raw", "startup_delay_ms",
+               "burst_count", "frame_length_raw", "frame_length_ms",
+               "state", "internal_sync_period_raw", "internal_sync_period_ms",
+               "out_channel0_enable", "out_channel0_polarity",
+               "out_channel0_on_raw", "out_channel0_on_ms",
+               "out_channel0_off_raw", "out_channel0_off_ms";
+               label = "iio-axi-tdd-1";
+       };
+
 };
 
 
