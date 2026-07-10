@@ -34,8 +34,8 @@
 
 
 &amba_pl {
-	axi_dac_ctrl@40e20000 {
-        	compatible = "rxtx,axi-dac-ctrl-1.0";
+	pps_do_ctrl@40e20000 {
+        	compatible = "rxtx,pps-do-ctrl-1.0";
 		reg = <0x40e20000 0x1000>;
 		clocks = <&clkc 15>;
 		clock-names = "s_axi_aclk";
